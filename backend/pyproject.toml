@@ -1,0 +1,23 @@
+[project]
+name = "marketplace-risk-backend"
+version = "0.1.0"
+description = "Backend skeleton for a mini classified marketplace with ML risk scoring integration."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "marketplace-risk-scoring contributors" }
+]
+dependencies = []
+
+[dependency-groups]
+dev = []
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

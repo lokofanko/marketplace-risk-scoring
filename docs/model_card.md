@@ -1,5 +1,5 @@
 # Model Card
 
-This document will track model purpose, data assumptions, evaluation metrics, threshold policy, and known limitations.
+## TODO
 
-No model has been trained yet.
+- Document model purpose, data assumptions, metrics, thresholds, and limitations.

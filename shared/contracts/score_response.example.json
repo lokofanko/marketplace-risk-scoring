@@ -1,0 +1,13 @@
+{
+  "listing_id": "listing_456",
+  "risk_score": 0.87,
+  "risk_level": "high",
+  "recommended_action": "manual_review",
+  "model_version": "logreg_v1",
+  "risk_factors": [
+    "new_account",
+    "high_listing_velocity",
+    "suspicious_text",
+    "low_price"
+  ]
+}

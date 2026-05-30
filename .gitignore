@@ -22,13 +22,11 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# Virtual environments
+# uv and virtual environments
 .venv/
 venv/
 env/
 ENV/
-
-# uv
 uv.lock.tmp
 
 # Environment files
@@ -37,28 +35,37 @@ uv.lock.tmp
 !.env.example
 
 # Local data
-data/raw/*
-data/interim/*
-data/processed/*
-!data/raw/.gitkeep
-!data/interim/.gitkeep
-!data/processed/.gitkeep
+/data/
+ml_service/data/raw/*
+ml_service/data/interim/*
+ml_service/data/processed/*
+!ml_service/data/raw/.gitkeep
+!ml_service/data/interim/.gitkeep
+!ml_service/data/processed/.gitkeep
 
 # Model artifacts and reports
-artifacts/models/*
-artifacts/reports/*
-artifacts/metrics/*
-!artifacts/models/.gitkeep
-!artifacts/reports/.gitkeep
-!artifacts/metrics/.gitkeep
+/artifacts/
+ml_service/artifacts/models/*
+ml_service/artifacts/reports/*
+ml_service/artifacts/metrics/*
+!ml_service/artifacts/models/.gitkeep
+!ml_service/artifacts/reports/.gitkeep
+!ml_service/artifacts/metrics/.gitkeep
 
 # Notebooks
 .ipynb_checkpoints/
 notebooks/**/*.html
+ml_service/notebooks/**/*.html
 
 # Logs
 logs/
 *.log
+
+# Local databases
+*.sqlite
+*.sqlite3
+*.db
+*.duckdb
 
 # Caches and local tooling
 .pytest_cache/

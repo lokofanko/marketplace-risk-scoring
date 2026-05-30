@@ -1,7 +1,7 @@
 [project]
-name = "marketplace-risk-scoring"
+name = "marketplace-risk-ml-service"
 version = "0.1.0"
-description = "Production-style ML risk scoring service skeleton for a mini classified marketplace."
+description = "ML service skeleton for real-time marketplace risk scoring."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
