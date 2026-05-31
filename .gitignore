@@ -67,6 +67,10 @@ logs/
 *.db
 *.duckdb
 
+# Django local outputs
+staticfiles/
+backend/staticfiles/
+
 # Caches and local tooling
 .pytest_cache/
 .ruff_cache/

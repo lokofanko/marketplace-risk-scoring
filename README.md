@@ -26,6 +26,7 @@ Build an end-to-end system where a marketplace backend calls an ML risk scoring 
 
 ## Current Status
 
-Initial monorepo skeleton and uv environments. Implementation will be added step by step.
+Initial monorepo skeleton and uv environments. The backend now includes an imported
+Django classified marketplace scaffold that will be adapted step by step.
 
-No real business logic, ML logic, API endpoints, Django models, training scripts, or Docker logic has been implemented yet.
+No ML logic, risk scoring integration, training scripts, or Docker logic has been implemented yet.
