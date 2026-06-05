@@ -1,0 +1,26 @@
+{
+  "confusion_matrices": {
+    "0.3": {
+      "false_negative": 2,
+      "false_positive": 15,
+      "true_negative": 715,
+      "true_positive": 268
+    },
+    "0.5": {
+      "false_negative": 2,
+      "false_positive": 14,
+      "true_negative": 716,
+      "true_positive": 268
+    },
+    "0.75": {
+      "false_negative": 2,
+      "false_positive": 10,
+      "true_negative": 720,
+      "true_positive": 268
+    }
+  },
+  "log_loss": 0.043431340524662757,
+  "pr_auc": 0.9978035253204043,
+  "roc_auc": 0.9991831557584981,
+  "validation_label_rate": 0.27
+}

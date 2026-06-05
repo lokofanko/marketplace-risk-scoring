@@ -42,6 +42,7 @@ ml_service/data/processed/*
 !ml_service/data/raw/.gitkeep
 !ml_service/data/interim/.gitkeep
 !ml_service/data/processed/.gitkeep
+!ml_service/data/processed/listing_events.csv
 
 # Model artifacts and reports
 /artifacts/
@@ -51,6 +52,8 @@ ml_service/artifacts/metrics/*
 !ml_service/artifacts/models/.gitkeep
 !ml_service/artifacts/reports/.gitkeep
 !ml_service/artifacts/metrics/.gitkeep
+!ml_service/artifacts/models/logreg_v1/
+!ml_service/artifacts/models/logreg_v1/**
 
 # Notebooks
 .ipynb_checkpoints/

@@ -14,4 +14,25 @@ This package will own the real-time ML risk scoring service and offline ML workf
 - MLflow experiment tracking later
 - Monitoring and drift checks later
 
-No ML logic, data simulator, model code, FastAPI endpoints, or training scripts are implemented yet.
+## Baseline ML pipeline
+
+The first baseline pipeline uses synthetic listing creation events and a simple
+Logistic Regression model.
+
+Generate synthetic data:
+
+```bash
+uv run python src/data/simulate_listing_events.py
+```
+
+Train the baseline model:
+
+```bash
+uv run python src/models/train_baseline.py
+```
+
+The generator writes `data/processed/listing_events.csv`. The training script saves
+the full sklearn preprocessing and model pipeline to `artifacts/models/logreg_v1/`
+along with metrics, model metadata, and feature column definitions.
+
+MLflow, Docker, monitoring, and production model serving integration will be added later.

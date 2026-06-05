@@ -1,0 +1,12 @@
+{
+  "data_path": "/Users/mac/Desktop/marketplace-risk-scoring/ml_service/data/processed/listing_events.csv",
+  "model_name": "logistic_regression_baseline",
+  "model_version": "logreg_v1",
+  "random_seed": 42,
+  "rows": 5000,
+  "sklearn_version": "1.9.0",
+  "target_column": "label",
+  "train_rows": 4000,
+  "trained_at": "2026-06-05T20:36:06.199529+00:00",
+  "validation_rows": 1000
+}
