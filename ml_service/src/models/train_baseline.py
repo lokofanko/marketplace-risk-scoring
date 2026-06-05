@@ -100,6 +100,35 @@ def write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
+def build_dataset_info(df: pd.DataFrame, train_rows: int, validation_rows: int) -> dict[str, object]:
+    label_counts = df["label"].value_counts().sort_index()
+
+    return {
+        "data_path": str(DATA_PATH),
+        "rows": int(len(df)),
+        "columns": int(len(df.columns)),
+        "column_names": list(df.columns),
+        "target_column": "label",
+        "label_counts": {str(label): int(count) for label, count in label_counts.items()},
+        "label_rate": float(df["label"].mean()),
+        "train_rows": int(train_rows),
+        "validation_rows": int(validation_rows),
+        "random_seed": RANDOM_SEED,
+        "categorical_feature_values": {
+            column: sorted(df[column].dropna().astype(str).unique().tolist())
+            for column in CATEGORICAL_FEATURES
+        },
+        "numeric_feature_summary": {
+            column: {
+                "min": float(df[column].min()),
+                "max": float(df[column].max()),
+                "mean": float(df[column].mean()),
+            }
+            for column in NUMERIC_FEATURES
+        },
+    }
+
+
 def main() -> None:
     df = load_dataset(DATA_PATH)
     X = df[FEATURE_COLUMNS].copy()
@@ -130,6 +159,7 @@ def main() -> None:
     metrics_path = ARTIFACT_DIR / "metrics.json"
     model_info_path = ARTIFACT_DIR / "model_info.json"
     feature_columns_path = ARTIFACT_DIR / "feature_columns.json"
+    dataset_info_path = ARTIFACT_DIR / "dataset_info.json"
 
     joblib.dump(pipeline, model_path)
     write_json(metrics_path, metrics)
@@ -157,6 +187,7 @@ def main() -> None:
             "excluded_columns": ["listing_id", "user_id", "title", "description", "label"],
         },
     )
+    write_json(dataset_info_path, build_dataset_info(df, len(X_train), len(X_val)))
 
     print(f"Dataset shape: {df.shape}")
     print(f"Label rate: {df['label'].mean():.4f}")
@@ -169,6 +200,7 @@ def main() -> None:
     print(f"  metrics: {metrics_path}")
     print(f"  model_info: {model_info_path}")
     print(f"  feature_columns: {feature_columns_path}")
+    print(f"  dataset_info: {dataset_info_path}")
 
 
 if __name__ == "__main__":
