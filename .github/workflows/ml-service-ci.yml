@@ -1,3 +1,13 @@
+name: ML Service CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,7 +35,7 @@
       - name: Install ML service dependencies
         working-directory: ml_service
         run: uv sync
-      
+
       - name: Check ML service Python imports
         working-directory: ml_service
         run: uv run python -c "import fastapi, pandas, sklearn, joblib; print('imports ok')"
