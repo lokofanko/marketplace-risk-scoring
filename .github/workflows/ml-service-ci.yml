@@ -39,6 +39,10 @@ jobs:
       - name: Check ML service Python imports
         working-directory: ml_service
         run: uv run python -c "import fastapi, pandas, sklearn, joblib; print('imports ok')"
+        
+      - name: Run ML service tests
+        working-directory: ml_service
+        run: uv run pytest
 
       - name: Print hello
         run: echo "ML Service CI started"
