@@ -1,4 +1,6 @@
 from pathlib import Path
+from datetime import datetime, timezone
+import json
 
 import joblib
 import pandas as pd
@@ -8,6 +10,7 @@ from pydantic import BaseModel
 app = FastAPI()
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MODEL_PATH = PROJECT_ROOT / "artifacts" / "models" / "logreg_v1" / "model.joblib"
+PREDICTION_LOG_PATH = PROJECT_ROOT / "logs" / "predictions.jsonl"
 
 model = joblib.load(MODEL_PATH)
 
@@ -98,6 +101,19 @@ def score_listing(request: ScoreRequest):
     else:
         risk_level = "high"
         recommended_action = "block"
+    PREDICTION_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    log_record = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "listing_id": request.listing_id,
+        "risk_score": risk_score,
+        "risk_level": risk_level,
+        "recommended_action": recommended_action,
+        "model_version": "logreg_v1",
+    }
+
+    with open(PREDICTION_LOG_PATH, "a", encoding="utf-8") as f:
+        f.write(json.dumps(log_record, ensure_ascii=False) + "\n")
 
     return {
         "listing_id": request.listing_id,
