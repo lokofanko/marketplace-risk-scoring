@@ -180,10 +180,13 @@ CKEDITOR_CONFIGS = {
 
 django_heroku.settings(locals())
 
-# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'  
-# MAILER_EMAIL_BACKEND = EMAIL_BACKEND
-EMAIL_USE_TLS = True  
-EMAIL_HOST = 'smtp.gmail.com'  
-EMAIL_HOST_USER = os.environ.get('DJANGO_EMAIL_HOST_USER', '')  
-EMAIL_HOST_PASSWORD = os.environ.get('DJANGO_EMAIL_HOST_PASSWORD', '')
+# Если почта не @mail.ru, то может не сработать
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.mail.ru'
 EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False
+EMAIL_HOST_USER = 'kirya.romanov.2003@mail.ru'
+# Вставляем пароль почты для сторонних приложений. Даём права только SMTP (отправка писем на почту). Заказываем на mail.ru
+EMAIL_HOST_PASSWORD = '' 
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
