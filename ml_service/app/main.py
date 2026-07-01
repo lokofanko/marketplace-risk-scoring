@@ -2,6 +2,9 @@ from pathlib import Path
 from datetime import datetime, timezone
 import json
 
+import os
+import psycopg
+
 import joblib
 import pandas as pd
 from fastapi import FastAPI
@@ -11,8 +14,76 @@ app = FastAPI()
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MODEL_PATH = PROJECT_ROOT / "artifacts" / "models" / "logreg_v1" / "model.joblib"
 PREDICTION_LOG_PATH = PROJECT_ROOT / "logs" / "predictions.jsonl"
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://risk_user:risk_password@localhost:5433/marketplace_risk",
+)
 
 model = joblib.load(MODEL_PATH)
+
+def write_prediction_log(log_path: Path, record: dict) -> None:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    with open(log_path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")  
+
+def write_prediction_log_to_db(record: dict) -> None:
+    with psycopg.connect(DATABASE_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO prediction_logs (
+                    listing_id,
+                    risk_score,
+                    risk_level,
+                    recommended_action,
+                    model_version
+                )
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (
+                    record["listing_id"],
+                    record["risk_score"],
+                    record["risk_level"],
+                    record["recommended_action"],
+                    record["model_version"],
+                ),
+            )
+
+def read_recent_prediction_logs(limit: int = 10) -> list[dict]:
+    with psycopg.connect(DATABASE_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    id,
+                    listing_id,
+                    risk_score,
+                    risk_level,
+                    recommended_action,
+                    model_version,
+                    created_at
+                FROM prediction_logs
+                ORDER BY id DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+
+            rows = cur.fetchall()
+
+    return [
+        {
+            "id": row[0],
+            "listing_id": row[1],
+            "risk_score": row[2],
+            "risk_level": row[3],
+            "recommended_action": row[4],
+            "model_version": row[5],
+            "created_at": row[6].isoformat(),
+        }
+        for row in rows
+    ]
 
 
 class ScoreRequest(BaseModel):
@@ -63,6 +134,11 @@ def model_info():
         "model_path": str(MODEL_PATH),
     }
 
+@app.get("/logs")
+def get_prediction_logs(limit: int = 10):
+    return {
+        "logs": read_recent_prediction_logs(limit=limit)
+    }
 
 @app.get("/listings/{listing_id}")
 def get_listing(listing_id: str):
@@ -112,8 +188,8 @@ def score_listing(request: ScoreRequest):
         "model_version": "logreg_v1",
     }
 
-    with open(PREDICTION_LOG_PATH, "a", encoding="utf-8") as f:
-        f.write(json.dumps(log_record, ensure_ascii=False) + "\n")
+    write_prediction_log(PREDICTION_LOG_PATH, log_record)
+    write_prediction_log_to_db(log_record)
 
     return {
         "listing_id": request.listing_id,
