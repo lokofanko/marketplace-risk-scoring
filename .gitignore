@@ -63,6 +63,7 @@ ml_service/notebooks/**/*.html
 # Logs
 logs/
 *.log
+ml_service/mlruns/
 
 # Local databases
 *.sqlite

@@ -5,5 +5,9 @@ __pycache__/
 .ruff_cache/
 mlruns/
 logs/
+data/
+notebooks/
+tests/
+configs/
 *.pyc
-.DS_Storedocker build -t marketplace-risk-ml-service .
+.DS_Store
