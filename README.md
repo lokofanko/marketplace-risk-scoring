@@ -1,6 +1,7 @@
 # Marketplace Risk Scoring
 
-A production-style ML engineering project for real-time trust and safety scoring in a mini classified marketplace.
+A portfolio monorepo for a mini classified marketplace with a real-time ML listing
+risk scoring prototype.
 
 ## Goal
 
@@ -26,7 +27,10 @@ Build an end-to-end system where a marketplace backend calls an ML risk scoring 
 
 ## Current Status
 
-Initial monorepo skeleton and uv environments. The backend now includes an imported
-Django classified marketplace scaffold that will be adapted step by step.
+The ML service includes a synthetic data generator, Logistic Regression baseline,
+FastAPI scoring endpoint, threshold policy, PostgreSQL prediction logs, tests, and
+Docker Compose setup. See [ml_service/README.md](ml_service/README.md) for API examples,
+local setup, limitations, and model details.
 
-No ML logic, risk scoring integration, training scripts, or Docker logic has been implemented yet.
+The Django marketplace backend is an imported scaffold and is not yet integrated
+with the scoring API.

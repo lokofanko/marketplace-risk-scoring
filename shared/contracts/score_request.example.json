@@ -12,5 +12,9 @@
   "num_ads_last_7d": 24,
   "is_verified_user": false,
   "previous_rejected_ads_count": 2,
-  "num_images": 1
+  "num_images": 1,
+  "has_telegram": true,
+  "has_urgency_word": true,
+  "has_external_contact": true,
+  "price_to_category_median_ratio": 0.22
 }
