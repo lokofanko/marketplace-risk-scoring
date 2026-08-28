@@ -7,6 +7,6 @@
   "sklearn_version": "1.9.0",
   "target_column": "label",
   "train_rows": 4000,
-  "trained_at": "2026-06-05T20:36:06.199529+00:00",
+  "trained_at": "2026-08-28T22:06:03.741450+00:00",
   "validation_rows": 1000
 }

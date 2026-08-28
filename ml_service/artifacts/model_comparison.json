@@ -1,0 +1,33 @@
+{
+  "dataset_rows": 5000,
+  "validation_rows": 1000,
+  "validation_label_rate": 0.176,
+  "selection_metric": "pr_auc",
+  "best_model": "logistic_regression",
+  "models": {
+    "logistic_regression": {
+      "roc_auc": 0.8084110216240071,
+      "pr_auc": 0.5941819482582625,
+      "log_loss": 0.5153306535837283,
+      "precision_at_0.5": 0.41836734693877553,
+      "recall_at_0.5": 0.6988636363636364,
+      "f1_at_0.5": 0.5234042553191489
+    },
+    "random_forest": {
+      "roc_auc": 0.7939789276257723,
+      "pr_auc": 0.5438194045554805,
+      "log_loss": 0.4693968627662048,
+      "precision_at_0.5": 0.4732510288065844,
+      "recall_at_0.5": 0.6534090909090909,
+      "f1_at_0.5": 0.548926014319809
+    },
+    "hist_gradient_boosting": {
+      "roc_auc": 0.7820429721977051,
+      "pr_auc": 0.5598553731971041,
+      "log_loss": 0.4750424329940766,
+      "precision_at_0.5": 0.45021645021645024,
+      "recall_at_0.5": 0.5909090909090909,
+      "f1_at_0.5": 0.5110565110565111
+    }
+  }
+}

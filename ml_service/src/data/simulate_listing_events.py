@@ -8,7 +8,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-
 RANDOM_SEED = 42
 DEFAULT_ROWS = 5_000
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -35,9 +34,15 @@ LEGIT_TITLES = {
 }
 
 RISKY_TITLES = {
-    "electronics": ["iPhone 15 Pro very cheap urgent", "MacBook sealed prepayment only"],
+    "electronics": [
+        "iPhone 15 Pro very cheap urgent",
+        "MacBook sealed prepayment only",
+    ],
     "vehicles": ["Car urgent sale no questions", "Scooter cheap today only"],
-    "real_estate": ["Apartment below market prepayment", "Rent urgent contact Telegram"],
+    "real_estate": [
+        "Apartment below market prepayment",
+        "Rent urgent contact Telegram",
+    ],
     "furniture": ["Designer sofa very cheap urgent", "New table prepay reserve"],
     "fashion": ["Luxury jacket original cheap", "Sneakers limited urgent"],
     "home_appliances": ["New fridge half price urgent", "Washer cheap Telegram"],
@@ -76,58 +81,64 @@ def contains_any(text: str, words: tuple[str, ...]) -> bool:
 def build_listing(index: int, rng: np.random.Generator) -> dict[str, object]:
     category = rng.choice(list(CATEGORY_MEDIANS))
     location = rng.choice(LOCATIONS)
-    is_scam_like_profile = rng.random() < 0.28
+    is_scam_like_profile = rng.random() < 0.25
 
     if is_scam_like_profile:
-        account_age_days = int(rng.integers(0, 21))
-        num_ads_last_24h = int(rng.poisson(5))
-        num_ads_last_7d = int(num_ads_last_24h + rng.poisson(12))
-        is_verified_user = bool(rng.random() < 0.18)
-        previous_rejected_ads_count = int(rng.poisson(1.4))
-        num_images = int(rng.choice([0, 1, 1, 2]))
-        price_ratio = float(rng.uniform(0.18, 0.75))
-        title = str(rng.choice(RISKY_TITLES[category]))
-        description = str(rng.choice(RISKY_DESCRIPTIONS))
+        account_age_days = int(rng.gamma(2.0, 20.0))
+        num_ads_last_24h = int(rng.poisson(3.5))
+        num_ads_last_7d = int(num_ads_last_24h + rng.poisson(8))
+        is_verified_user = bool(rng.random() < 0.30)
+        previous_rejected_ads_count = int(rng.poisson(0.9))
+        num_images = int(rng.integers(0, 5))
+        price_ratio = float(np.clip(rng.normal(0.68, 0.25), 0.12, 1.5))
     else:
-        account_age_days = int(rng.integers(30, 1500))
-        num_ads_last_24h = int(rng.poisson(1))
-        num_ads_last_7d = int(num_ads_last_24h + rng.poisson(3))
-        is_verified_user = bool(rng.random() < 0.78)
-        previous_rejected_ads_count = int(rng.choice([0, 0, 0, 1]))
-        num_images = int(rng.choice([2, 3, 4, 5, 6]))
-        price_ratio = float(rng.uniform(0.75, 1.35))
-        title = str(rng.choice(LEGIT_TITLES[category]))
-        description = str(rng.choice(LEGIT_DESCRIPTIONS))
+        account_age_days = int(np.clip(rng.gamma(2.5, 180.0), 1, 1800))
+        num_ads_last_24h = int(rng.poisson(1.2))
+        num_ads_last_7d = int(num_ads_last_24h + rng.poisson(4))
+        is_verified_user = bool(rng.random() < 0.70)
+        previous_rejected_ads_count = int(rng.poisson(0.15))
+        num_images = int(rng.integers(1, 7))
+        price_ratio = float(np.clip(rng.normal(1.0, 0.22), 0.25, 1.7))
 
-    # Add some overlap so the baseline is not perfectly trivial.
-    if rng.random() < 0.08:
-        description = str(rng.choice(RISKY_DESCRIPTIONS))
-    if rng.random() < 0.06:
-        title = str(rng.choice(RISKY_TITLES[category]))
-    if rng.random() < 0.05:
-        price_ratio = float(rng.uniform(0.35, 0.7))
+    # Text signals overlap on purpose: legitimate sellers can also write "urgent".
+    uses_risky_title = rng.random() < (0.62 if is_scam_like_profile else 0.14)
+    uses_risky_description = rng.random() < (0.58 if is_scam_like_profile else 0.10)
+    title_pool = RISKY_TITLES if uses_risky_title else LEGIT_TITLES
+    description_pool = (
+        RISKY_DESCRIPTIONS if uses_risky_description else LEGIT_DESCRIPTIONS
+    )
+    title = str(rng.choice(title_pool[category]))
+    description = str(rng.choice(description_pool))
 
     median_price = CATEGORY_MEDIANS[category]
     price = round(median_price * price_ratio * float(rng.uniform(0.92, 1.08)), 2)
 
     has_telegram = contains_any(f"{title} {description}", ("telegram",))
     has_urgency_word = contains_any(f"{title} {description}", URGENCY_WORDS)
-    has_external_contact = contains_any(f"{title} {description}", EXTERNAL_CONTACT_WORDS)
+    has_external_contact = contains_any(
+        f"{title} {description}", EXTERNAL_CONTACT_WORDS
+    )
     has_suspicious_description = contains_any(description, SUSPICIOUS_DESCRIPTION_WORDS)
 
-    risk_points = 0.0
-    risk_points += 0.18 if account_age_days < 7 else 0.0
-    risk_points += 0.12 if num_ads_last_24h >= 5 else 0.0
-    risk_points += 0.10 if num_ads_last_7d >= 15 else 0.0
-    risk_points += 0.10 if not is_verified_user else 0.0
-    risk_points += min(previous_rejected_ads_count, 3) * 0.07
-    risk_points += 0.18 if price_ratio < 0.55 else 0.0
-    risk_points += 0.08 if price_ratio < 0.35 else 0.0
-    risk_points += 0.14 if has_telegram else 0.0
-    risk_points += 0.08 if has_urgency_word else 0.0
-    risk_points += 0.12 if has_external_contact else 0.0
-    risk_points += 0.10 if has_suspicious_description else 0.0
-    risk_points += 0.08 if num_images <= 1 else 0.0
+    # A noisy probability is closer to real moderation labels than a hard rule.
+    risk_logit = -3.2
+    risk_logit += 0.9 if account_age_days < 14 else 0.0
+    risk_logit += 0.65 if num_ads_last_24h >= 4 else 0.0
+    risk_logit += 0.45 if num_ads_last_7d >= 12 else 0.0
+    risk_logit += 0.35 if not is_verified_user else 0.0
+    risk_logit += min(previous_rejected_ads_count, 3) * 0.55
+    risk_logit += 0.9 if price_ratio < 0.55 else 0.0
+    risk_logit += 0.65 if has_telegram else 0.0
+    risk_logit += 0.35 if has_urgency_word else 0.0
+    risk_logit += 0.55 if has_external_contact else 0.0
+    risk_logit += 0.35 if has_suspicious_description else 0.0
+    risk_logit += 0.4 if num_images <= 1 else 0.0
+
+    # Interactions and unobserved noise make a nonlinear model worth comparing.
+    risk_logit += 0.8 if account_age_days < 14 and price_ratio < 0.55 else 0.0
+    risk_logit += 0.7 if num_ads_last_24h >= 4 and has_external_contact else 0.0
+    risk_logit += float(rng.normal(0.0, 0.75))
+    risk_probability = 1.0 / (1.0 + np.exp(-risk_logit))
 
     return {
         "listing_id": f"listing_{index:06d}",
@@ -147,7 +158,7 @@ def build_listing(index: int, rng: np.random.Generator) -> dict[str, object]:
         "has_urgency_word": has_urgency_word,
         "has_external_contact": has_external_contact,
         "price_to_category_median_ratio": round(price / median_price, 4),
-        "label": int(risk_points >= 0.55),
+        "label": int(rng.random() < risk_probability),
     }
 
 

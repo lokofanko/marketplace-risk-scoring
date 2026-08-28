@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import joblib
+import mlflow
 import pandas as pd
 import sklearn
 from sklearn.compose import ColumnTransformer
@@ -20,7 +21,6 @@ from sklearn.metrics import (
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
-
 
 RANDOM_SEED = 42
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -48,7 +48,8 @@ THRESHOLDS = [0.3, 0.5, 0.75]
 def load_dataset(path: Path) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(
-            f"Dataset not found at {path}. Run src/data/simulate_listing_events.py first."
+            f"Dataset not found at {path}. "
+            "Run src/data/simulate_listing_events.py first."
         )
 
     df = pd.read_csv(path)
@@ -62,7 +63,11 @@ def load_dataset(path: Path) -> pd.DataFrame:
 def build_pipeline() -> Pipeline:
     preprocessor = ColumnTransformer(
         transformers=[
-            ("categorical", OneHotEncoder(handle_unknown="ignore"), CATEGORICAL_FEATURES),
+            (
+                "categorical",
+                OneHotEncoder(handle_unknown="ignore"),
+                CATEGORICAL_FEATURES,
+            ),
             ("numeric", StandardScaler(), NUMERIC_FEATURES),
         ]
     )
@@ -82,7 +87,9 @@ def build_pipeline() -> Pipeline:
     )
 
 
-def confusion_at_thresholds(y_true: pd.Series, y_proba: pd.Series) -> dict[str, dict[str, int]]:
+def confusion_at_thresholds(
+    y_true: pd.Series, y_proba: pd.Series
+) -> dict[str, dict[str, int]]:
     matrices: dict[str, dict[str, int]] = {}
     for threshold in THRESHOLDS:
         y_pred = (y_proba >= threshold).astype(int)
@@ -100,7 +107,9 @@ def write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
-def build_dataset_info(df: pd.DataFrame, train_rows: int, validation_rows: int) -> dict[str, object]:
+def build_dataset_info(
+    df: pd.DataFrame, train_rows: int, validation_rows: int
+) -> dict[str, object]:
     label_counts = df["label"].value_counts().sort_index()
 
     return {
@@ -109,7 +118,9 @@ def build_dataset_info(df: pd.DataFrame, train_rows: int, validation_rows: int) 
         "columns": int(len(df.columns)),
         "column_names": list(df.columns),
         "target_column": "label",
-        "label_counts": {str(label): int(count) for label, count in label_counts.items()},
+        "label_counts": {
+            str(label): int(count) for label, count in label_counts.items()
+        },
         "label_rate": float(df["label"].mean()),
         "train_rows": int(train_rows),
         "validation_rows": int(validation_rows),
@@ -184,10 +195,43 @@ def main() -> None:
             "categorical_features": CATEGORICAL_FEATURES,
             "numeric_features": NUMERIC_FEATURES,
             "all_features": FEATURE_COLUMNS,
-            "excluded_columns": ["listing_id", "user_id", "title", "description", "label"],
+            "excluded_columns": [
+                "listing_id",
+                "user_id",
+                "title",
+                "description",
+                "label",
+            ],
         },
     )
     write_json(dataset_info_path, build_dataset_info(df, len(X_train), len(X_val)))
+
+    mlflow.set_experiment("listing-risk-scoring")
+
+    with mlflow.start_run(run_name="logreg_v1"):
+        mlflow.log_param("model_type", "logistic_regression")
+        mlflow.log_param("model_version", "logreg_v1")
+        mlflow.log_param("random_seed", RANDOM_SEED)
+
+        mlflow.log_param("dataset_path", str(DATA_PATH))
+        mlflow.log_param("dataset_rows", len(df))
+        mlflow.log_param("dataset_label_rate", float(df["label"].mean()))
+
+        mlflow.log_param("train_rows", len(X_train))
+        mlflow.log_param("validation_rows", len(X_val))
+        mlflow.log_param("categorical_features", ",".join(CATEGORICAL_FEATURES))
+        mlflow.log_param("numeric_features", ",".join(NUMERIC_FEATURES))
+
+        mlflow.log_metric("roc_auc", metrics["roc_auc"])
+        mlflow.log_metric("pr_auc", metrics["pr_auc"])
+        mlflow.log_metric("log_loss", metrics["log_loss"])
+        mlflow.log_metric("validation_label_rate", metrics["validation_label_rate"])
+
+        mlflow.log_artifact(model_path)
+        mlflow.log_artifact(metrics_path)
+        mlflow.log_artifact(model_info_path)
+        mlflow.log_artifact(feature_columns_path)
+        mlflow.log_artifact(dataset_info_path)
 
     print(f"Dataset shape: {df.shape}")
     print(f"Label rate: {df['label'].mean():.4f}")

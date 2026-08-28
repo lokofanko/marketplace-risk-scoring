@@ -1,26 +1,26 @@
 {
   "confusion_matrices": {
     "0.3": {
-      "false_negative": 2,
-      "false_positive": 15,
-      "true_negative": 715,
-      "true_positive": 268
+      "false_negative": 32,
+      "false_positive": 362,
+      "true_negative": 462,
+      "true_positive": 144
     },
     "0.5": {
-      "false_negative": 2,
-      "false_positive": 14,
-      "true_negative": 716,
-      "true_positive": 268
+      "false_negative": 53,
+      "false_positive": 171,
+      "true_negative": 653,
+      "true_positive": 123
     },
     "0.75": {
-      "false_negative": 2,
-      "false_positive": 10,
-      "true_negative": 720,
-      "true_positive": 268
+      "false_negative": 85,
+      "false_positive": 60,
+      "true_negative": 764,
+      "true_positive": 91
     }
   },
-  "log_loss": 0.043431340524662757,
-  "pr_auc": 0.9978035253204043,
-  "roc_auc": 0.9991831557584981,
-  "validation_label_rate": 0.27
+  "log_loss": 0.5153306535837283,
+  "pr_auc": 0.5941819482582625,
+  "roc_auc": 0.8084110216240071,
+  "validation_label_rate": 0.176
 }

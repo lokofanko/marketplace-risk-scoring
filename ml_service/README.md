@@ -181,6 +181,7 @@ From `ml_service/`:
 uv sync --group training
 uv run python src/data/simulate_listing_events.py
 uv run python src/models/train_baseline.py
+uv run python src/models/compare_models.py
 ```
 
 The generator writes `data/processed/listing_events.csv`. Training writes the full
@@ -192,9 +193,15 @@ pipeline and metadata to `artifacts/models/logreg_v1/`:
 - `feature_columns.json`
 - `dataset_info.json`
 
-The current validation metrics are very high because both labels and features come
-from the same transparent synthetic risk rules. They demonstrate pipeline wiring,
-not real-world fraud detection performance.
+The synthetic labels are sampled from a transparent risk probability. Feature
+distributions overlap, and the generator adds interaction effects and unobserved
+noise, so the task is intentionally imperfect rather than directly reproducing a
+fixed rule.
+
+`compare_models.py` evaluates Logistic Regression, Random Forest, and Histogram
+Gradient Boosting on the same split. It writes `artifacts/model_comparison.json`
+and saves the candidate models under `artifacts/models/`. The API continues to
+use `logreg_v1` until a model is deliberately promoted.
 
 ## Limitations
 
