@@ -1,69 +1,98 @@
+from datetime import UTC, datetime
+
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app import main
+from app.schemas import ScoreResponse
 
 
-client = TestClient(app)
-
-
-def test_health_returns_ok():
+def test_health(client: TestClient):
     response = client.get("/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
-
-def test_score_valid_payload_returns_prediction():
-    payload = {
-        "listing_id": "listing_test_001",
-        "title": "iPhone 15 Pro very cheap urgent",
-        "description": "Prepayment only, contact me in Telegram",
-        "price": 200.0,
-        "category": "electronics",
-        "location": "Moscow",
-        "account_age_days": 2,
-        "num_ads_last_24h": 12,
-        "num_ads_last_7d": 24,
-        "is_verified_user": False,
-        "previous_rejected_ads_count": 2,
-        "num_images": 1,
-        "has_telegram": True,
-        "has_urgency_word": True,
-        "has_external_contact": True,
-        "price_to_category_median_ratio": 0.22,
+    assert response.json() == {
+        "status": "ok",
+        "model_status": "loaded",
+        "database_status": "disabled",
     }
 
-    response = client.post("/score", json=payload)
+
+def test_model_info(client: TestClient):
+    response = client.get("/model-info")
 
     assert response.status_code == 200
-
-    data = response.json()
-
-    assert data["listing_id"] == "listing_test_001"
-    assert 0.0 <= data["risk_score"] <= 1.0
-    assert data["risk_level"] in ["low", "medium", "high"]
-    assert data["recommended_action"] in ["approve", "manual_review", "block"]
-    assert data["model_version"] == "logreg_v1"
-
-def test_score_invalid_price_returns_422():
-    payload = {
-        "listing_id": "listing_test_001",
-        "title": "iPhone 15 Pro very cheap urgent",
-        "description": "Prepayment only, contact me in Telegram",
-        "price": "дешево",
-        "category": "electronics",
-        "location": "Moscow",
-        "account_age_days": 2,
-        "num_ads_last_24h": 12,
-        "num_ads_last_7d": 24,
-        "is_verified_user": False,
-        "previous_rejected_ads_count": 2,
-        "num_images": 1,
-        "has_telegram": True,
-        "has_urgency_word": True,
-        "has_external_contact": True,
-        "price_to_category_median_ratio": 0.22,
+    assert response.json() == {
+        "model_name": "logistic_regression_baseline",
+        "model_version": "logreg_v1",
+        "status": "loaded",
+        "model_type": "sklearn Pipeline with LogisticRegression",
+        "feature_count": 13,
     }
 
-    response = client.post("/score", json=payload)
+
+def test_score_valid_request(client: TestClient, score_payload: dict[str, object]):
+    response = client.post("/score", json=score_payload)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["listing_id"] == "listing_test_001"
+    assert 0 <= data["risk_score"] <= 1
+    assert data["risk_level"] in {"low", "medium", "high"}
+    assert data["recommended_action"] in {
+        "approve",
+        "manual_review",
+        "block",
+    }
+    assert data["model_version"] == "logreg_v1"
+    assert "new_account" in data["risk_factors"]
+
+
+def test_score_response_schema(
+    client: TestClient,
+    score_payload: dict[str, object],
+):
+    response = client.post("/score", json=score_payload)
+
+    assert response.status_code == 200
+    parsed = ScoreResponse.model_validate(response.json())
+    assert parsed.listing_id == score_payload["listing_id"]
+
+
+def test_score_invalid_price_returns_422(
+    client: TestClient,
+    score_payload: dict[str, object],
+):
+    score_payload["price"] = "cheap"
+
+    response = client.post("/score", json=score_payload)
 
     assert response.status_code == 422
+
+
+def test_logs_endpoint_mocked(client: TestClient, monkeypatch):
+    created_at = datetime(2026, 6, 6, tzinfo=UTC)
+    monkeypatch.setattr(
+        main.db,
+        "read_recent_prediction_logs",
+        lambda database_url, limit: [
+            {
+                "id": 1,
+                "listing_id": "listing_test_001",
+                "risk_score": 0.91,
+                "risk_level": "high",
+                "recommended_action": "block",
+                "model_version": "logreg_v1",
+                "created_at": created_at,
+            }
+        ],
+    )
+
+    response = client.get("/logs?limit=1")
+
+    assert response.status_code == 200
+    assert response.json()["logs"][0]["listing_id"] == "listing_test_001"
+
+
+def test_logs_limit_validation(client: TestClient):
+    assert client.get("/logs?limit=0").status_code == 422
+    assert client.get("/logs?limit=101").status_code == 422

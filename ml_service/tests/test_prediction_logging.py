@@ -1,23 +1,22 @@
-import json
+from fastapi.testclient import TestClient
 
-from app.main import write_prediction_log
+from app import main
+from app.db import DatabaseUnavailableError
 
 
-def test_write_prediction_log_creates_jsonl_record(tmp_path):
-    log_path = tmp_path / "predictions.jsonl"
+def test_score_still_works_when_database_logging_fails(
+    client: TestClient,
+    monkeypatch,
+    score_payload: dict[str, object],
+):
+    monkeypatch.setattr(main, "DATABASE_URL", "postgresql://unavailable/test")
 
-    record = {
-        "timestamp": "2026-06-09T00:00:00+00:00",
-        "listing_id": "listing_test_001",
-        "risk_score": 0.91,
-        "risk_level": "high",
-        "recommended_action": "block",
-        "model_version": "logreg_v1",
-    }
+    def fail_to_insert(*args, **kwargs):
+        raise DatabaseUnavailableError("database unavailable in test")
 
-    write_prediction_log(log_path, record)
+    monkeypatch.setattr(main.db, "insert_prediction_log", fail_to_insert)
 
-    lines = log_path.read_text(encoding="utf-8").splitlines()
+    response = client.post("/score", json=score_payload)
 
-    assert len(lines) == 1
-    assert json.loads(lines[0]) == record
+    assert response.status_code == 200
+    assert response.json()["model_version"] == "logreg_v1"

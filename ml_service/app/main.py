@@ -1,202 +1,138 @@
-from pathlib import Path
-from datetime import datetime, timezone
-import json
+"""FastAPI application for marketplace listing risk scoring."""
 
-import os
-import psycopg
+import logging
+from contextlib import asynccontextmanager
 
-import joblib
-import pandas as pd
-from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, Query, status
 
-app = FastAPI()
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-MODEL_PATH = PROJECT_ROOT / "artifacts" / "models" / "logreg_v1" / "model.joblib"
-PREDICTION_LOG_PATH = PROJECT_ROOT / "logs" / "predictions.jsonl"
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://risk_user:risk_password@localhost:5433/marketplace_risk",
+from app import db, model
+from app.config import (
+    APPROVE_THRESHOLD,
+    BLOCK_THRESHOLD,
+    DATABASE_URL,
+    MODEL_VERSION,
+)
+from app.policy import collect_risk_factors, decide_risk
+from app.schemas import (
+    HealthResponse,
+    ModelInfoResponse,
+    PredictionLogsResponse,
+    ScoreRequest,
+    ScoreResponse,
 )
 
-model = joblib.load(MODEL_PATH)
-
-def write_prediction_log(log_path: Path, record: dict) -> None:
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    with open(log_path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(record, ensure_ascii=False) + "\n")  
-
-def write_prediction_log_to_db(record: dict) -> None:
-    with psycopg.connect(DATABASE_URL) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO prediction_logs (
-                    listing_id,
-                    risk_score,
-                    risk_level,
-                    recommended_action,
-                    model_version
-                )
-                VALUES (%s, %s, %s, %s, %s)
-                """,
-                (
-                    record["listing_id"],
-                    record["risk_score"],
-                    record["risk_level"],
-                    record["recommended_action"],
-                    record["model_version"],
-                ),
-            )
-
-def read_recent_prediction_logs(limit: int = 10) -> list[dict]:
-    with psycopg.connect(DATABASE_URL) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT
-                    id,
-                    listing_id,
-                    risk_score,
-                    risk_level,
-                    recommended_action,
-                    model_version,
-                    created_at
-                FROM prediction_logs
-                ORDER BY id DESC
-                LIMIT %s
-                """,
-                (limit,),
-            )
-
-            rows = cur.fetchall()
-
-    return [
-        {
-            "id": row[0],
-            "listing_id": row[1],
-            "risk_score": row[2],
-            "risk_level": row[3],
-            "recommended_action": row[4],
-            "model_version": row[5],
-            "created_at": row[6].isoformat(),
-        }
-        for row in rows
-    ]
+logger = logging.getLogger(__name__)
 
 
-class ScoreRequest(BaseModel):
-    listing_id: str
-    title: str
-    description: str
-    price: float
-    category: str
-    location: str
-    account_age_days: int
-    num_ads_last_24h: int
-    num_ads_last_7d: int
-    is_verified_user: bool
-    previous_rejected_ads_count: int
-    num_images: int
-    has_telegram: bool
-    has_urgency_word: bool
-    has_external_contact: bool
-    price_to_category_median_ratio: float
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    try:
+        model.load_model()
+    except model.ModelUnavailableError as exc:
+        logger.error("Model initialization failed: %s", exc)
+
+    if DATABASE_URL:
+        try:
+            db.initialize_database(DATABASE_URL)
+        except db.DatabaseUnavailableError as exc:
+            logger.warning("Database initialization failed: %s", exc)
+
+    yield
 
 
-class ScoreResponse(BaseModel):
-    listing_id: str
-    risk_score: float
-    message: str
-    risk_level: str
-    recommended_action: str
-    model_version: str
-    risk_factors: list[str]
+app = FastAPI(
+    title="Marketplace Risk Scoring",
+    description="Portfolio prototype for real-time listing risk scoring.",
+    version="0.1.0",
+    lifespan=lifespan,
+)
 
 
 @app.get("/")
-def root():
+def root() -> dict[str, str]:
     return {"message": "Marketplace Risk Scoring ML Service"}
 
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+@app.get("/health", response_model=HealthResponse)
+def health() -> HealthResponse:
+    model_state = model.model_status()
+    if DATABASE_URL:
+        database_is_available = db.check_database(DATABASE_URL)
+        database_state = "available" if database_is_available else "unavailable"
+    else:
+        database_state = "disabled"
+
+    service_state = (
+        "ok"
+        if model_state == "loaded" and database_state != "unavailable"
+        else "degraded"
+    )
+    return HealthResponse(
+        status=service_state,
+        model_status=model_state,
+        database_status=database_state,
+    )
 
 
-@app.get("/model-info")
-def model_info():
-    return {
-        "model_name": "logistic_regression_baseline",
-        "model_version": "logreg_v1",
-        "status": "loaded",
-        "model_path": str(MODEL_PATH),
-    }
+@app.get("/model-info", response_model=ModelInfoResponse)
+def model_info() -> ModelInfoResponse:
+    try:
+        return ModelInfoResponse.model_validate(model.read_model_info())
+    except model.ModelUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Model artifact is unavailable",
+        ) from exc
 
-@app.get("/logs")
-def get_prediction_logs(limit: int = 10):
-    return {
-        "logs": read_recent_prediction_logs(limit=limit)
-    }
 
-@app.get("/listings/{listing_id}")
-def get_listing(listing_id: str):
-    return {
-        "listing_id": listing_id,
-        "message": "Listing placeholder",
-    }
+@app.get("/logs", response_model=PredictionLogsResponse)
+def get_prediction_logs(
+    limit: int = Query(default=10, ge=1, le=100),
+) -> PredictionLogsResponse:
+    try:
+        logs = db.read_recent_prediction_logs(DATABASE_URL, limit=limit)
+    except db.DatabaseUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    return PredictionLogsResponse(logs=logs)
 
 
 @app.post("/score", response_model=ScoreResponse)
-def score_listing(request: ScoreRequest):
-    features = pd.DataFrame([{
-        "category": request.category,
-        "location": request.location,
-        "price": request.price,
-        "account_age_days": request.account_age_days,
-        "num_ads_last_24h": request.num_ads_last_24h,
-        "num_ads_last_7d": request.num_ads_last_7d,
-        "is_verified_user": request.is_verified_user,
-        "previous_rejected_ads_count": request.previous_rejected_ads_count,
-        "num_images": request.num_images,
-        "has_telegram": request.has_telegram,
-        "has_urgency_word": request.has_urgency_word,
-        "has_external_contact": request.has_external_contact,
-        "price_to_category_median_ratio": request.price_to_category_median_ratio,
-    }])
+def score_listing(request: ScoreRequest) -> ScoreResponse:
+    try:
+        risk_score = model.predict_probability(request)
+    except model.ModelUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Model artifact is unavailable",
+        ) from exc
+    except Exception as exc:
+        logger.exception("Model inference failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Model inference failed",
+        ) from exc
 
-    risk_score = float(model.predict_proba(features)[0, 1])
+    risk_level, recommended_action = decide_risk(
+        risk_score,
+        approve_threshold=APPROVE_THRESHOLD,
+        block_threshold=BLOCK_THRESHOLD,
+    )
+    response = ScoreResponse(
+        listing_id=request.listing_id,
+        risk_score=risk_score,
+        risk_level=risk_level,
+        recommended_action=recommended_action,
+        model_version=MODEL_VERSION,
+        risk_factors=collect_risk_factors(request),
+    )
 
-    if risk_score < 0.3:
-        risk_level = "low"
-        recommended_action = "approve"
-    elif risk_score < 0.75:
-        risk_level = "medium"
-        recommended_action = "manual_review"
-    else:
-        risk_level = "high"
-        recommended_action = "block"
-    PREDICTION_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if DATABASE_URL:
+        try:
+            db.insert_prediction_log(DATABASE_URL, response.model_dump())
+        except db.DatabaseUnavailableError as exc:
+            logger.warning("Prediction was not written to PostgreSQL: %s", exc)
 
-    log_record = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "listing_id": request.listing_id,
-        "risk_score": risk_score,
-        "risk_level": risk_level,
-        "recommended_action": recommended_action,
-        "model_version": "logreg_v1",
-    }
-
-    write_prediction_log(PREDICTION_LOG_PATH, log_record)
-    write_prediction_log_to_db(log_record)
-
-    return {
-        "listing_id": request.listing_id,
-        "risk_score": risk_score,
-        "message": "Risk score calculated by logreg_v1",
-        "risk_level": risk_level,
-        "recommended_action": recommended_action,
-        "model_version": "logreg_v1",
-        "risk_factors": [],
-    }
+    return response
